@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Swahili Treats - Welcome</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@700&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #ffb703;
+      --secondary: #fb8500;
+      --accent: #219ebc;
+      --bg: linear-gradient(135deg, #fffbea 0%, #ffe5ec 100%);
+      --button: #ff006e;
+      --button-hover: #d9045b;
+      --text: #22223b;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Quicksand', Arial, sans-serif;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      position: relative;
+    }
+    .floating-emoji {
+      position: absolute;
+      font-size: 2.5rem;
+      opacity: 0.5;
+      animation: float 6s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .emoji1 { left: 10vw; top: 10vh; animation-delay: 0s;}
+    .emoji2 { right: 12vw; top: 20vh; animation-delay: 2s;}
+    .emoji3 { left: 20vw; bottom: 12vh; animation-delay: 1s;}
+    .emoji4 { right: 18vw; bottom: 8vh; animation-delay: 3s;}
+    @keyframes float {
+      0% { transform: translateY(0);}
+      50% { transform: translateY(-30px);}
+      100% { transform: translateY(0);}
+    }
+    .container {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      border-radius: 2rem;
+      background: rgba(255,255,255,0.85);
+      box-shadow: 0 4px 24px rgba(34,34,59,0.07);
+      max-width: 400px;
+      margin: 2rem 1rem;
+      z-index: 1;
+      position: relative;
+    }
+    .logo {
+      font-family: 'Fredoka', cursive;
+      font-size: 2.7rem;
+      color: var(--button);
+      letter-spacing: 2px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5em;
+      opacity: 0;
+      transform: translateY(-40px) scale(0.8);
+      animation: bounceIn 1s 0.2s forwards;
+    }
+    .logo span {
+      font-size: 2rem;
+    }
+    .tagline {
+      font-size: 1.2rem;
+      color: var(--text);
+      margin-bottom: 2.5rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      opacity: 0;
+      transform: translateY(30px);
+      animation: fadeInUp 1s 0.7s forwards;
+    }
+    .continue-btn {
+      background: var(--button);
+      color: #fff;
+      font-size: 1.25rem;
+      font-weight: bold;
+      padding: 1.1rem 2.7rem;
+      border: none;
+      border-radius: 2rem;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(34,34,59,0.10);
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+      display: inline-block;
+      text-decoration: none;
+      opacity: 0;
+      transform: scale(0.8);
+      animation: popIn 0.7s 1.2s forwards;
+    }
+    .continue-btn:hover, .continue-btn:focus {
+      background: var(--button-hover);
+      transform: scale(1.08);
+    }
+    @keyframes bounceIn {
+      0% { opacity: 0; transform: translateY(-40px) scale(0.8);}
+      60% { opacity: 1; transform: translateY(10px) scale(1.1);}
+      80% { transform: translateY(-5px) scale(0.95);}
+      100% { opacity: 1; transform: translateY(0) scale(1);}
+    }
+    @keyframes fadeInUp {
+      0% { opacity: 0; transform: translateY(30px);}
+      100% { opacity: 1; transform: translateY(0);}
+    }
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.8);}
+      80% { opacity: 1; transform: scale(1.1);}
+      100% { opacity: 1; transform: scale(1);}
+    }
+    @media (max-width: 600px) {
+      .container {
+        padding: 1.5rem 0.5rem;
+        max-width: 95vw;
+      }
+      .logo {
+        font-size: 2rem;
+      }
+      .tagline {
+        font-size: 1rem;
+      }
+      .continue-btn {
+        font-size: 1.1rem;
+        padding: 1rem 1.5rem;
+      }
+      .floating-emoji { font-size: 1.5rem;}
+    }
+  </style>
+</head>
+<body>
+  <div class="floating-emoji emoji1">🍬</div>
+  <div class="floating-emoji emoji2">🍭</div>
+  <div class="floating-emoji emoji3">🥭</div>
+  <div class="floating-emoji emoji4">🥥</div>
+  <div class="container">
+    <div class="logo">
+      <span>🍬</span> Swahili Treats <span>🍭</span>
+    </div>
+    <div class="tagline">Sweet. Spicy. Swahili.</div>
+    <button class="continue-btn" onclick="goToProducts()">Continue to See the Treats</button>
+  </div>
+  <script>
+    function goToProducts() {
+      // Add a fun button pop effect before navigating
+      const btn = document.querySelector('.continue-btn');
+      btn.style.transform = 'scale(1.15)';
+      setTimeout(() => {
+        window.location.href = "products.html";
+      }, 180);
+    }
+  </script>
+</body>
+</html>
