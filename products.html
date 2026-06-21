@@ -218,34 +218,6 @@
         color: var(--accent);
         margin-bottom: 0.7rem;
       }
-      .price-row {
-        display: flex;
-        align-items: center;
-        gap: 0.5em;
-        flex-wrap: wrap;
-        margin-bottom: 0.7rem;
-      }
-      .price-original {
-        font-size: 0.9rem;
-        color: #aaa;
-        text-decoration: line-through;
-        font-weight: 600;
-      }
-      .price-discounted {
-        font-size: 1.05rem;
-        font-weight: bold;
-        color: var(--button);
-      }
-      .discount-pill {
-        display: inline-block;
-        background: linear-gradient(135deg, var(--button), var(--secondary));
-        color: #fff;
-        font-size: 0.68rem;
-        font-weight: 700;
-        padding: 0.15rem 0.55rem;
-        border-radius: 2rem;
-        letter-spacing: 0.3px;
-      }
       /* ── Add to Cart button (replaces Order Now) ── */
       .order-btn {
         background: var(--button);
@@ -1322,70 +1294,15 @@
       }
 
       // ═══════════════════════════════════════════════════════════════════════
-      // DISCOUNTS (ported from admin.html — same matching/calculation logic)
-      // ═══════════════════════════════════════════════════════════════════════
-
-      let allDiscounts = [];
-
-      function isDiscountLive(d) {
-        if (!d.active) return false;
-        const now = Date.now();
-        if (d.start_date && new Date(d.start_date).getTime() > now) return false;
-        if (d.end_date   && new Date(d.end_date).getTime()   < now) return false;
-        return true;
-      }
-
-      /** Find the best (highest-value) live discount for a product (product-specific or site-wide). */
-      function getActiveDiscount(productId) {
-        const candidates = allDiscounts.filter(d => {
-          if (!isDiscountLive(d)) return false;
-          return !d.product_id || String(d.product_id) === String(productId);
-        });
-        if (candidates.length === 0) return null;
-        return candidates.sort((a, b) => b.discount_value - a.discount_value)[0];
-      }
-
-      /** Apply a discount to a price, return rounded result ≥ 0 */
-      function applyDiscount(price, disc) {
-        if (!disc) return price;
-        let result;
-        if (disc.discount_type === "percentage") {
-          result = price * (1 - Math.min(disc.discount_value, 100) / 100);
-        } else {
-          result = price - disc.discount_value;
-        }
-        return Math.max(0, Math.round(result * 100) / 100);
-      }
-
-      /** Human-readable discount label e.g. "15% OFF" or "KES 50 OFF" */
-      function discountLabel(disc) {
-        if (!disc) return "";
-        return disc.discount_type === "percentage"
-          ? `${disc.discount_value}% OFF`
-          : `Ksh ${Number(disc.discount_value).toLocaleString()} OFF`;
-      }
-
-      async function loadActiveDiscounts() {
-        const { data, error } = await db.from("discounts").select("*").eq("active", true);
-        if (error || !data) { console.error("Supabase discounts fetch error:", error); allDiscounts = []; return; }
-        allDiscounts = data;
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════
       // PRODUCT CARDS
       // ═══════════════════════════════════════════════════════════════════════
 
       function createProductCard(p, variantGroups) {
-        const origPrice = Number(p.price) || 0;
-        const disc = getActiveDiscount(p.id);
-        const finalPrice = disc ? applyDiscount(origPrice, disc) : origPrice;
-
         const div = document.createElement("div");
         div.className = "product";
         div.setAttribute("data-product", p.name);
         div.setAttribute("data-product-id", p.id);
-        // Cart/order pricing must use the discounted price, not the raw catalog price.
-        div.setAttribute("data-product-price", finalPrice);
+        div.setAttribute("data-product-price", p.price);
         div.setAttribute("data-product-image", p.image_url || "");
 
         const imgWrap = document.createElement("div");
@@ -1409,28 +1326,8 @@
         desc.textContent = p.description || "";
 
         const price = document.createElement("div");
-        if (disc) {
-          price.className = "price-row";
-
-          const originalEl = document.createElement("span");
-          originalEl.className = "price-original";
-          originalEl.textContent = `Ksh ${origPrice.toLocaleString()}`;
-
-          const discountedEl = document.createElement("span");
-          discountedEl.className = "price-discounted";
-          discountedEl.textContent = `Ksh ${finalPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-
-          const pillEl = document.createElement("span");
-          pillEl.className = "discount-pill";
-          pillEl.textContent = discountLabel(disc);
-
-          price.appendChild(originalEl);
-          price.appendChild(discountedEl);
-          price.appendChild(pillEl);
-        } else {
-          price.className = "product-price";
-          price.textContent = `Ksh ${origPrice.toLocaleString()}`;
-        }
+        price.className = "product-price";
+        price.textContent = `Ksh ${Number(p.price).toLocaleString()}`;
 
         const btn = document.createElement("button");
         btn.className = "order-btn";
@@ -1490,14 +1387,11 @@
         const loadingEl = document.getElementById("products-loading");
         const errorEl = document.getElementById("products-error");
 
-        const [{ data, error }] = await Promise.all([
-          db
-            .from("products")
-            .select("id, name, description, price, image_url")
-            .eq("active", true)
-            .order("created_at", { ascending: true }),
-          loadActiveDiscounts(),
-        ]);
+        const { data, error } = await db
+          .from("products")
+          .select("id, name, description, price, image_url")
+          .eq("active", true)
+          .order("created_at", { ascending: true });
 
         if (loadingEl) loadingEl.remove();
 
@@ -1657,10 +1551,6 @@
         const orderIds = [];
         const errors = [];
 
-        // Refresh discounts right before pricing the order so checkout reflects
-        // any change made in the admin dashboard since the page was loaded.
-        await loadActiveDiscounts();
-
         // Process each cart item as a separate order
         for (const item of cart) {
           // Fetch live price from Supabase
@@ -1675,9 +1565,7 @@
             continue;
           }
 
-          const livePrice = Number(priceRow.price);
-          const liveDiscount = getActiveDiscount(item.productId);
-          const unit_price = liveDiscount ? applyDiscount(livePrice, liveDiscount) : livePrice;
+          const unit_price = Number(priceRow.price);
           const total_price = unit_price * item.quantity;
           const order_id = generateOrderId();
 

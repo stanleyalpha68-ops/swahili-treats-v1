@@ -2,8 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Swahili Treats – Admin</title>
+
+    <!-- ── PWA metadata ───────────────────────────────────────────────── -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#ff006e" />
+    <meta name="description" content="Admin dashboard for managing Swahili Treats products, discounts, orders and announcements." />
+
+    <!-- Android / Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS Safari "Add to Home Screen" support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ST Admin" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+
     <link
       href="https://fonts.googleapis.com/css2?family=Fredoka:wght@700&family=Quicksand:wght@400;600&display=swap"
       rel="stylesheet"
@@ -6398,6 +6416,18 @@
       // INIT
       // ══════════════════════════════════════════════════════════════
       loadOrders();
+    </script>
+
+    <!-- ── PWA: register service worker (scope limited to this page only — ──
+         does not affect the customer storefront in any way) ─────────────── -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/admin-sw.js", { scope: "/admin.html" })
+            .catch(err => console.error("Service worker registration failed:", err));
+        });
+      }
     </script>
   </body>
 </html>
