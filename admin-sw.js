@@ -1,11 +1,11 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   Swahili Treats — ADMIN-ONLY service worker  (v2 — with Push Notifications)
+   Swahili Treats — ADMIN-ONLY service worker  (v3 — Web Push)
 
-   Scope: "/admin.html" and "/login.html" only. Never touches the storefront.
+   Scope: "/" but fetch handler only caches the known admin shell.
    ────────────────────────────────────────────────────────────────────── */
 
-const CACHE_VERSION = "admin-pwa-v2";
-const CACHE_NAME = `swahili-treats-admin-${CACHE_VERSION}`;
+const CACHE_VERSION = "admin-pwa-v3";
+const CACHE_NAME    = `swahili-treats-admin-${CACHE_VERSION}`;
 
 const ADMIN_APP_SHELL = [
   "/admin.html",
@@ -19,7 +19,10 @@ const ADMIN_APP_SHELL = [
 ];
 
 function isAdminAsset(url) {
-  return url.origin === self.location.origin && ADMIN_APP_SHELL.includes(url.pathname);
+  return (
+    url.origin === self.location.origin &&
+    ADMIN_APP_SHELL.includes(url.pathname)
+  );
 }
 
 // ── Install ────────────────────────────────────────────────────────────────
@@ -44,98 +47,89 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key.startsWith("swahili-treats-admin-") && key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
+          .filter(
+            (k) =>
+              k.startsWith("swahili-treats-admin-") && k !== CACHE_NAME
+          )
+          .map((k) => caches.delete(k))
       )
     )
   );
   self.clients.claim();
 });
 
-// ── Fetch: network-first for admin shell only ──────────────────────────────
+// ── Fetch ──────────────────────────────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
-
   if (req.method !== "GET" || !isAdminAsset(url)) return;
 
   event.respondWith(
     fetch(req)
-      .then((networkRes) => {
-        const copy = networkRes.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
-        return networkRes;
+      .then((res) => {
+        caches.open(CACHE_NAME).then((c) => c.put(req, res.clone()));
+        return res;
       })
       .catch(() => caches.match(req))
   );
 });
 
-// ── Push: show notification when a push event arrives ─────────────────────
+// ── Push: received from the push server (works when app is CLOSED) ─────────
 self.addEventListener("push", (event) => {
   let data = {
     title: "🛍️ New Order!",
-    body: "A new order has been placed.",
-    icon: "/icons/icon-192.png",
+    body:  "A new order has been placed.",
+    icon:  "/icons/icon-192.png",
     badge: "/icons/favicon-32.png",
-    tag: "new-order",
+    tag:   "new-order",
+    url:   "/admin.html",
   };
 
   try {
-    if (event.data) {
-      const parsed = event.data.json();
-      data = { ...data, ...parsed };
-    }
-  } catch (e) {
-    // use defaults above
-  }
+    if (event.data) Object.assign(data, event.data.json());
+  } catch (_) {/* use defaults */}
 
   event.waitUntil(
     self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: data.icon,
-      badge: data.badge,
-      tag: data.tag,
-      renotify: true,
-      vibrate: [200, 100, 200, 100, 400],
-      data: { url: "/admin.html" },
-      actions: [{ action: "view", title: "View Orders" }],
+      body:      data.body,
+      icon:      data.icon,
+      badge:     data.badge,
+      tag:       data.tag,
+      renotify:  true,
+      vibrate:   [200, 100, 200, 100, 400],
+      data:      { url: data.url },
+      actions:   [{ action: "view", title: "View Orders" }],
     })
   );
 });
 
-// ── Notification click: open / focus admin tab ─────────────────────────────
+// ── Notification click ──────────────────────────────────────────────────────
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-
-  const targetUrl = (event.notification.data && event.notification.data.url)
-    ? event.notification.data.url
-    : "/admin.html";
+  const target = (event.notification.data || {}).url || "/admin.html";
 
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
-      for (const client of windowClients) {
-        if (client.url.includes("admin.html") && "focus" in client) {
-          return client.focus();
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((list) => {
+        for (const c of list) {
+          if (c.url.includes("admin.html") && "focus" in c) return c.focus();
         }
-      }
-      if (clients.openWindow) return clients.openWindow(targetUrl);
-    })
+        return clients.openWindow(target);
+      })
   );
 });
 
-// ── Message from page: show in-SW notification (used when tab IS open) ────
-// The page sends { type: "NEW_ORDER", title, body } via postMessage.
+// ── Message from page (fallback in-app notify when tab is open) ────────────
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "NEW_ORDER") {
-    self.registration.showNotification(event.data.title || "🛍️ New Order!", {
-      body: event.data.body || "A new order has just been placed.",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/favicon-32.png",
-      tag: "new-order-" + Date.now(),
-      renotify: true,
-      vibrate: [200, 100, 200, 100, 400],
-      data: { url: "/admin.html" },
-      actions: [{ action: "view", title: "View Orders" }],
-    });
-  }
+  if (!event.data || event.data.type !== "NEW_ORDER") return;
+  self.registration.showNotification(event.data.title || "🛍️ New Order!", {
+    body:    event.data.body || "A new order was placed.",
+    icon:    "/icons/icon-192.png",
+    badge:   "/icons/favicon-32.png",
+    tag:     "new-order-" + Date.now(),
+    renotify: true,
+    vibrate: [200, 100, 200, 100, 400],
+    data:    { url: "/admin.html" },
+  });
 });

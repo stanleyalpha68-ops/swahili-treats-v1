@@ -6413,99 +6413,112 @@
       });
 
       // ══════════════════════════════════════════════════════════════
-      // PUSH NOTIFICATIONS + REALTIME ORDER LISTENER
+      // WEB PUSH NOTIFICATIONS (works even when app is closed)
       // ══════════════════════════════════════════════════════════════
 
-      // ── 1. Request notification permission ────────────────────────
-      async function requestNotificationPermission() {
-        if (!("Notification" in window)) return false;
-        if (Notification.permission === "granted") return true;
-        if (Notification.permission === "denied") return false;
-        const result = await Notification.requestPermission();
-        return result === "granted";
+      // Your VAPID public key — generated once, never changes
+      const VAPID_PUBLIC_KEY = "BF2wjO-Boct-Qse7ut0y0LKTs7NOwK52nkHClzaAm1VsqRPSO5sa7TckyMn1pIRGCEbBxzgQRMe29mywj_aKsB0";
+
+      function urlBase64ToUint8Array(base64String) {
+        const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+        const base64  = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+        const raw     = atob(base64);
+        return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
       }
 
-      // ── 2. Show notification via service worker (works in background) ──
-      async function sendOrderNotification(order) {
-        const title = "🛍️ New Order!";
-        const customerName = order.customer_name || "Someone";
-        const product = order.product || "an item";
-        const qty = order.quantity || 1;
-        const body = `${customerName} ordered ${product} × ${qty}`;
+      // ── Subscribe this browser to Web Push and save to Supabase ───────
+      async function subscribeToPush(swReg) {
+        try {
+          // Check if already subscribed
+          let sub = await swReg.pushManager.getSubscription();
 
-        // Vibrate if available (in-tab vibration)
-        if (navigator.vibrate) {
-          navigator.vibrate([200, 100, 200, 100, 400]);
+          if (!sub) {
+            sub = await swReg.pushManager.subscribe({
+              userVisibleOnly:      true,
+              applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+            });
+          }
+
+          // Save subscription to Supabase (upsert by endpoint)
+          const subJson = sub.toJSON();
+          const { error } = await db
+            .from("push_subscriptions")
+            .upsert(
+              {
+                endpoint:   subJson.endpoint,
+                keys:       subJson.keys,
+                user_agent: navigator.userAgent.slice(0, 200),
+              },
+              { onConflict: "endpoint" }
+            );
+
+          if (error) console.error("Failed to save push subscription:", error);
+          else console.log("✅ Push subscription saved.");
+        } catch (err) {
+          console.warn("Push subscription failed:", err);
         }
+      }
 
-        // Try to show notification via active service worker
-        if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: "NEW_ORDER",
-            title,
-            body,
-          });
+      // ── Request permission + register SW + subscribe ───────────────────
+      async function initPushNotifications() {
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+          console.warn("Push notifications not supported on this browser.");
           return;
         }
 
-        // Fallback: direct Notification API
-        if (Notification.permission === "granted") {
-          new Notification(title, {
-            body,
-            icon: "/icons/icon-192.png",
-            badge: "/icons/favicon-32.png",
-            tag: "new-order",
-          });
+        // Ask for permission
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          console.warn("Notification permission denied.");
+          showToast("⚠️ Enable notifications in your browser settings to get order alerts.", "error");
+          return;
         }
+
+        // Wait for SW to be ready
+        const swReg = await navigator.serviceWorker.ready;
+        await subscribeToPush(swReg);
       }
 
-      // ── 3. Subscribe to Supabase Realtime on the orders table ────────
-      let realtimeChannel = null;
+      // ── Realtime listener (backup for when tab IS open) ────────────────
+      // Even with push enabled, this gives instant in-tab alerts + refreshes the orders list.
       let knownOrderIds = new Set();
 
-      async function startOrderRealtime() {
-        // Pre-populate known IDs so we don't alert on existing orders
+      async function startRealtimeListener() {
         const { data: existing } = await db
           .from("orders")
           .select("id")
           .order("created_at", { ascending: false })
-          .limit(100);
-
+          .limit(200);
         if (existing) existing.forEach((o) => knownOrderIds.add(String(o.id)));
 
-        // Subscribe to INSERT events on orders
-        realtimeChannel = db
-          .channel("admin-new-orders")
+        db.channel("admin-orders-realtime")
           .on(
             "postgres_changes",
             { event: "INSERT", schema: "public", table: "orders" },
             async (payload) => {
-              const newOrder = payload.new;
-              if (!newOrder || knownOrderIds.has(String(newOrder.id))) return;
-              knownOrderIds.add(String(newOrder.id));
+              const o = payload.new;
+              if (!o || knownOrderIds.has(String(o.id))) return;
+              knownOrderIds.add(String(o.id));
 
-              // Notify admin
-              await sendOrderNotification(newOrder);
+              // Vibrate in-tab
+              if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
 
-              // Refresh orders list if we're on the orders tab
+              // Show in-app toast
+              showToast(`🛍️ New order from ${o.customer_name || "a customer"}!`, "success");
+
+              // Refresh orders list if on that tab
               if (document.querySelector('.tab-btn[data-tab="orders"]')?.classList.contains("active")) {
                 await loadOrders();
               }
-
-              // Show in-app toast as well
-              showToast(`🛍️ New order from ${newOrder.customer_name || "a customer"}!`, "success");
             }
           )
           .subscribe();
       }
 
-      // ── 4. Boot: ask permission then start listener ───────────────────
+      // ── Boot both systems ──────────────────────────────────────────────
       (async () => {
-        const granted = await requestNotificationPermission();
-        if (!granted) {
-          console.warn("Notifications permission denied — realtime still active but no notifications will show.");
-        }
-        await startOrderRealtime();
+        await initPushNotifications();
+        await startRealtimeListener();
       })();
 
       // ══════════════════════════════════════════════════════════════
@@ -6517,16 +6530,10 @@
     <!-- ── PWA: register service worker ─────────────────────────────────── -->
     <script>
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", async () => {
-          try {
-            // Register with scope covering both admin pages only.
-            // The SW's fetch handler still ignores everything except
-            // the declared admin app-shell, so the storefront is safe.
-            const reg = await navigator.serviceWorker.register("/admin-sw.js", { scope: "/" });
-            console.log("Admin SW registered, scope:", reg.scope);
-          } catch (err) {
-            console.error("Service worker registration failed:", err);
-          }
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/admin-sw.js", { scope: "/" })
+            .catch((err) => console.error("SW registration failed:", err));
         });
       }
     </script>
