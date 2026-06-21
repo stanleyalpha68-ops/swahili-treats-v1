@@ -2501,6 +2501,7 @@
       </div>
       <div class="header-actions">
         <span id="admin-email-label" style="font-size:0.82rem;font-weight:700;color:#22223b;opacity:0.65;display:none;align-items:center;gap:0.3em;"><span>👤</span><span id="admin-email-text"></span></span>
+        <button class="refresh-btn" id="notif-btn" title="Enable push notifications" style="border-color:#ffb703;color:#ffb703;">🔔 Enable Alerts</button>
         <button class="refresh-btn" id="refresh-btn">↻ Refresh</button>
         <button class="refresh-btn" id="logout-btn" style="border-color:#ff006e;color:#ff006e;" title="Sign out">🚪 Logout</button>
       </div>
@@ -6416,7 +6417,6 @@
       // WEB PUSH NOTIFICATIONS (works even when app is closed)
       // ══════════════════════════════════════════════════════════════
 
-      // Your VAPID public key — generated once, never changes
       const VAPID_PUBLIC_KEY = "BF2wjO-Boct-Qse7ut0y0LKTs7NOwK52nkHClzaAm1VsqRPSO5sa7TckyMn1pIRGCEbBxzgQRMe29mywj_aKsB0";
 
       function urlBase64ToUint8Array(base64String) {
@@ -6426,61 +6426,101 @@
         return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
       }
 
-      // ── Subscribe this browser to Web Push and save to Supabase ───────
-      async function subscribeToPush(swReg) {
-        try {
-          // Check if already subscribed
-          let sub = await swReg.pushManager.getSubscription();
+      const notifBtn = document.getElementById("notif-btn");
 
-          if (!sub) {
-            sub = await swReg.pushManager.subscribe({
-              userVisibleOnly:      true,
-              applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-            });
+      async function saveSubscriptionToSupabase(sub) {
+        const subJson = sub.toJSON();
+        const { error } = await db
+          .from("push_subscriptions")
+          .upsert(
+            { endpoint: subJson.endpoint, keys: subJson.keys, user_agent: navigator.userAgent.slice(0, 200) },
+            { onConflict: "endpoint" }
+          );
+        if (error) {
+          console.error("❌ Failed to save subscription:", error);
+          showToast("⚠️ Could not save notification subscription: " + error.message, "error");
+          return false;
+        }
+        console.log("✅ Subscription saved to Supabase");
+        return true;
+      }
+
+      async function doSubscribe() {
+        notifBtn.disabled = true;
+        notifBtn.textContent = "⏳ Subscribing…";
+
+        try {
+          // 1. Check support
+          if (!("serviceWorker" in navigator)) throw new Error("Service workers not supported on this browser.");
+          if (!("PushManager" in window)) throw new Error("Push notifications not supported on this browser.");
+
+          // 2. Request permission explicitly
+          const permission = await Notification.requestPermission();
+          if (permission !== "granted") {
+            showToast("❌ Notification permission denied. Go to browser Settings → Site Settings → Notifications → Allow for this site.", "error");
+            notifBtn.disabled = false;
+            notifBtn.textContent = "🔔 Enable Alerts";
+            return;
           }
 
-          // Save subscription to Supabase (upsert by endpoint)
-          const subJson = sub.toJSON();
-          const { error } = await db
-            .from("push_subscriptions")
-            .upsert(
-              {
-                endpoint:   subJson.endpoint,
-                keys:       subJson.keys,
-                user_agent: navigator.userAgent.slice(0, 200),
-              },
-              { onConflict: "endpoint" }
-            );
+          // 3. Wait for SW
+          const swReg = await navigator.serviceWorker.ready;
+          console.log("SW ready, scope:", swReg.scope);
 
-          if (error) console.error("Failed to save push subscription:", error);
-          else console.log("✅ Push subscription saved.");
+          // 4. Unsubscribe old sub first to force fresh one
+          const oldSub = await swReg.pushManager.getSubscription();
+          if (oldSub) {
+            await oldSub.unsubscribe();
+            console.log("Old subscription removed");
+          }
+
+          // 5. Subscribe fresh
+          const sub = await swReg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          });
+          console.log("New push subscription:", sub.endpoint);
+
+          // 6. Save to Supabase
+          const saved = await saveSubscriptionToSupabase(sub);
+          if (saved) {
+            notifBtn.textContent = "✅ Alerts On";
+            notifBtn.style.borderColor = "#2ecc71";
+            notifBtn.style.color = "#2ecc71";
+            showToast("🔔 Push notifications enabled! You'll get alerts even when the app is closed.", "success");
+          } else {
+            notifBtn.disabled = false;
+            notifBtn.textContent = "🔔 Enable Alerts";
+          }
+
         } catch (err) {
-          console.warn("Push subscription failed:", err);
+          console.error("Push subscription error:", err);
+          showToast("❌ Error: " + err.message, "error");
+          notifBtn.disabled = false;
+          notifBtn.textContent = "🔔 Enable Alerts";
         }
       }
 
-      // ── Request permission + register SW + subscribe ───────────────────
-      async function initPushNotifications() {
-        if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-          console.warn("Push notifications not supported on this browser.");
-          return;
+      // Manual button click
+      notifBtn.addEventListener("click", doSubscribe);
+
+      // Auto-subscribe silently on load if already permitted
+      (async () => {
+        if (Notification.permission === "granted") {
+          try {
+            const swReg = await navigator.serviceWorker.ready;
+            const existing = await swReg.pushManager.getSubscription();
+            if (existing) {
+              await saveSubscriptionToSupabase(existing);
+              notifBtn.textContent = "✅ Alerts On";
+              notifBtn.style.borderColor = "#2ecc71";
+              notifBtn.style.color = "#2ecc71";
+            }
+          } catch (e) { console.warn("Auto-subscribe check failed:", e); }
         }
+      })();
 
-        // Ask for permission
-        const permission = await Notification.requestPermission();
-        if (permission !== "granted") {
-          console.warn("Notification permission denied.");
-          showToast("⚠️ Enable notifications in your browser settings to get order alerts.", "error");
-          return;
-        }
-
-        // Wait for SW to be ready
-        const swReg = await navigator.serviceWorker.ready;
-        await subscribeToPush(swReg);
-      }
-
-      // ── Realtime listener (backup for when tab IS open) ────────────────
-      // Even with push enabled, this gives instant in-tab alerts + refreshes the orders list.
+      // ── Realtime listener (instant alert when tab is open) ─────────────
       let knownOrderIds = new Set();
 
       async function startRealtimeListener() {
@@ -6499,14 +6539,8 @@
               const o = payload.new;
               if (!o || knownOrderIds.has(String(o.id))) return;
               knownOrderIds.add(String(o.id));
-
-              // Vibrate in-tab
               if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
-
-              // Show in-app toast
               showToast(`🛍️ New order from ${o.customer_name || "a customer"}!`, "success");
-
-              // Refresh orders list if on that tab
               if (document.querySelector('.tab-btn[data-tab="orders"]')?.classList.contains("active")) {
                 await loadOrders();
               }
@@ -6515,11 +6549,7 @@
           .subscribe();
       }
 
-      // ── Boot both systems ──────────────────────────────────────────────
-      (async () => {
-        await initPushNotifications();
-        await startRealtimeListener();
-      })();
+      startRealtimeListener();
 
       // ══════════════════════════════════════════════════════════════
       // INIT
