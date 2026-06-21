@@ -368,13 +368,12 @@
     });
   </script>
 
-  <!-- ── PWA: register service worker (scope limited to this page only — ──
-       does not affect the customer storefront in any way) ─────────────── -->
+  <!-- ── PWA: register service worker ────────────────────────────────────── -->
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker
-          .register("/admin-sw.js", { scope: "/login.html" })
+          .register("/admin-sw.js", { scope: "/" })
           .catch(err => console.error("Service worker registration failed:", err));
       });
     }
