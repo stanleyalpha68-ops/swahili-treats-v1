@@ -6413,19 +6413,120 @@
       });
 
       // ══════════════════════════════════════════════════════════════
+      // PUSH NOTIFICATIONS + REALTIME ORDER LISTENER
+      // ══════════════════════════════════════════════════════════════
+
+      // ── 1. Request notification permission ────────────────────────
+      async function requestNotificationPermission() {
+        if (!("Notification" in window)) return false;
+        if (Notification.permission === "granted") return true;
+        if (Notification.permission === "denied") return false;
+        const result = await Notification.requestPermission();
+        return result === "granted";
+      }
+
+      // ── 2. Show notification via service worker (works in background) ──
+      async function sendOrderNotification(order) {
+        const title = "🛍️ New Order!";
+        const customerName = order.customer_name || "Someone";
+        const product = order.product || "an item";
+        const qty = order.quantity || 1;
+        const body = `${customerName} ordered ${product} × ${qty}`;
+
+        // Vibrate if available (in-tab vibration)
+        if (navigator.vibrate) {
+          navigator.vibrate([200, 100, 200, 100, 400]);
+        }
+
+        // Try to show notification via active service worker
+        if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: "NEW_ORDER",
+            title,
+            body,
+          });
+          return;
+        }
+
+        // Fallback: direct Notification API
+        if (Notification.permission === "granted") {
+          new Notification(title, {
+            body,
+            icon: "/icons/icon-192.png",
+            badge: "/icons/favicon-32.png",
+            tag: "new-order",
+          });
+        }
+      }
+
+      // ── 3. Subscribe to Supabase Realtime on the orders table ────────
+      let realtimeChannel = null;
+      let knownOrderIds = new Set();
+
+      async function startOrderRealtime() {
+        // Pre-populate known IDs so we don't alert on existing orders
+        const { data: existing } = await db
+          .from("orders")
+          .select("id")
+          .order("created_at", { ascending: false })
+          .limit(100);
+
+        if (existing) existing.forEach((o) => knownOrderIds.add(String(o.id)));
+
+        // Subscribe to INSERT events on orders
+        realtimeChannel = db
+          .channel("admin-new-orders")
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "orders" },
+            async (payload) => {
+              const newOrder = payload.new;
+              if (!newOrder || knownOrderIds.has(String(newOrder.id))) return;
+              knownOrderIds.add(String(newOrder.id));
+
+              // Notify admin
+              await sendOrderNotification(newOrder);
+
+              // Refresh orders list if we're on the orders tab
+              if (document.querySelector('.tab-btn[data-tab="orders"]')?.classList.contains("active")) {
+                await loadOrders();
+              }
+
+              // Show in-app toast as well
+              showToast(`🛍️ New order from ${newOrder.customer_name || "a customer"}!`, "success");
+            }
+          )
+          .subscribe();
+      }
+
+      // ── 4. Boot: ask permission then start listener ───────────────────
+      (async () => {
+        const granted = await requestNotificationPermission();
+        if (!granted) {
+          console.warn("Notifications permission denied — realtime still active but no notifications will show.");
+        }
+        await startOrderRealtime();
+      })();
+
+      // ══════════════════════════════════════════════════════════════
       // INIT
       // ══════════════════════════════════════════════════════════════
       loadOrders();
     </script>
 
-    <!-- ── PWA: register service worker (scope limited to this page only — ──
-         does not affect the customer storefront in any way) ─────────────── -->
+    <!-- ── PWA: register service worker ─────────────────────────────────── -->
     <script>
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker
-            .register("/admin-sw.js", { scope: "/admin.html" })
-            .catch(err => console.error("Service worker registration failed:", err));
+        window.addEventListener("load", async () => {
+          try {
+            // Register with scope covering both admin pages only.
+            // The SW's fetch handler still ignores everything except
+            // the declared admin app-shell, so the storefront is safe.
+            const reg = await navigator.serviceWorker.register("/admin-sw.js", { scope: "/" });
+            console.log("Admin SW registered, scope:", reg.scope);
+          } catch (err) {
+            console.error("Service worker registration failed:", err);
+          }
         });
       }
     </script>
