@@ -1,25 +1,12 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   Swahili Treats — ADMIN-ONLY service worker.
+   Swahili Treats — ADMIN-ONLY service worker  (v2 — with Push Notifications)
 
-   IMPORTANT: This file is registered with an explicit narrow `scope`
-   ("/admin.html" and "/login.html" individually — see the registration
-   code in those two files). That means the browser will NEVER let this
-   service worker control or intercept requests for index.html,
-   products.html, or any other page on the site. The customer-facing
-   storefront is completely unaffected by this file's existence.
-
-   As a second layer of safety, the fetch handler below also explicitly
-   ignores anything that isn't a known admin-app asset — so even if it
-   were ever loaded in a broader scope by mistake, it would not cache or
-   rewrite customer pages, and it never touches Supabase API calls
-   (auth, REST, storage) — those always go straight to the network so
-   login/session/data stay fully live and unmodified.
+   Scope: "/admin.html" and "/login.html" only. Never touches the storefront.
    ────────────────────────────────────────────────────────────────────── */
 
-const CACHE_VERSION = "admin-pwa-v1";
+const CACHE_VERSION = "admin-pwa-v2";
 const CACHE_NAME = `swahili-treats-admin-${CACHE_VERSION}`;
 
-// The only files this service worker is allowed to cache.
 const ADMIN_APP_SHELL = [
   "/admin.html",
   "/login.html",
@@ -32,11 +19,10 @@ const ADMIN_APP_SHELL = [
 ];
 
 function isAdminAsset(url) {
-  // Only same-origin admin-app-shell paths are ever handled.
   return url.origin === self.location.origin && ADMIN_APP_SHELL.includes(url.pathname);
 }
 
-// ── Install: pre-cache the admin app shell ─────────────────────────────────
+// ── Install ────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
@@ -44,7 +30,7 @@ self.addEventListener("install", (event) => {
         ADMIN_APP_SHELL.map((path) =>
           fetch(path, { cache: "no-cache" })
             .then((res) => (res.ok ? cache.put(path, res) : null))
-            .catch(() => null) // don't fail install if one optional asset 404s
+            .catch(() => null)
         )
       )
     )
@@ -52,7 +38,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
-// ── Activate: drop any old admin cache versions ────────────────────────────
+// ── Activate ───────────────────────────────────────────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -66,31 +52,90 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// ── Fetch: network-first for the admin shell, untouched for everything else ─
+// ── Fetch: network-first for admin shell only ──────────────────────────────
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Never intercept anything except GETs for our own admin app shell.
-  // Supabase auth/API calls, fonts, CDN scripts, the customer site, and
-  // anything else simply fall through to the browser's normal network
-  // fetch as if this service worker did not exist.
-  if (req.method !== "GET" || !isAdminAsset(url)) {
-    return;
-  }
+  if (req.method !== "GET" || !isAdminAsset(url)) return;
 
   event.respondWith(
     fetch(req)
       .then((networkRes) => {
-        // Keep the cached shell fresh whenever we're online.
         const copy = networkRes.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
         return networkRes;
       })
-      .catch(() =>
-        // Offline (or network error): fall back to the last cached version
-        // so the dashboard shell still opens instead of showing an error.
-        caches.match(req)
-      )
+      .catch(() => caches.match(req))
   );
+});
+
+// ── Push: show notification when a push event arrives ─────────────────────
+self.addEventListener("push", (event) => {
+  let data = {
+    title: "🛍️ New Order!",
+    body: "A new order has been placed.",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/favicon-32.png",
+    tag: "new-order",
+  };
+
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
+    }
+  } catch (e) {
+    // use defaults above
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon,
+      badge: data.badge,
+      tag: data.tag,
+      renotify: true,
+      vibrate: [200, 100, 200, 100, 400],
+      data: { url: "/admin.html" },
+      actions: [{ action: "view", title: "View Orders" }],
+    })
+  );
+});
+
+// ── Notification click: open / focus admin tab ─────────────────────────────
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const targetUrl = (event.notification.data && event.notification.data.url)
+    ? event.notification.data.url
+    : "/admin.html";
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes("admin.html") && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
+});
+
+// ── Message from page: show in-SW notification (used when tab IS open) ────
+// The page sends { type: "NEW_ORDER", title, body } via postMessage.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "NEW_ORDER") {
+    self.registration.showNotification(event.data.title || "🛍️ New Order!", {
+      body: event.data.body || "A new order has just been placed.",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/favicon-32.png",
+      tag: "new-order-" + Date.now(),
+      renotify: true,
+      vibrate: [200, 100, 200, 100, 400],
+      data: { url: "/admin.html" },
+      actions: [{ action: "view", title: "View Orders" }],
+    });
+  }
 });
