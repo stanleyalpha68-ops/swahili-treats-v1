@@ -4,161 +4,412 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Swahili Treats - Welcome</title>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@700&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="shortcut icon" href="/favicon-32.png">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      --primary: #ffb703;
-      --secondary: #fb8500;
-      --accent: #219ebc;
-      --bg: linear-gradient(135deg, #fffbea 0%, #ffe5ec 100%);
-      --button: #ff006e;
-      --button-hover: #d9045b;
-      --text: #22223b;
+      --ocean:      #0e7490;
+      --ocean-deep: #0c4a6e;
+      --sand:       #f5e6c8;
+      --sand-dark:  #e8c98a;
+      --spice:      #c2410c;
+      --coral:      #fb923c;
+      --cream:      #fdf8f0;
+      --text-dark:  #1c1917;
+      --text-mid:   #57534e;
     }
+
+    html, body {
+      height: 100%;
+    }
+
     body {
-      margin: 0;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
       min-height: 100vh;
-      font-family: 'Quicksand', Arial, sans-serif;
-      background: var(--bg);
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ── Ocean wave background ── */
+    .bg-ocean {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: linear-gradient(
+        180deg,
+        #0c4a6e 0%,
+        #0e7490 35%,
+        #0891b2 55%,
+        #e8c98a 75%,
+        #f5e6c8 100%
+      );
+    }
+
+    /* Animated wave SVG */
+    .waves {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 180px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .wave {
+      animation: waveMove 8s ease-in-out infinite;
+    }
+    .wave2 {
+      animation: waveMove 10s ease-in-out infinite reverse;
+      opacity: 0.5;
+    }
+    .wave3 {
+      animation: waveMove 6s ease-in-out infinite;
+      opacity: 0.3;
+    }
+
+    @keyframes waveMove {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(-40px); }
+    }
+
+    /* ── Floating particles ── */
+    .particle {
+      position: fixed;
+      font-size: 1.6rem;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 2;
+      animation: drift linear infinite;
+    }
+
+    @keyframes drift {
+      0%   { opacity: 0; transform: translateY(0) rotate(0deg); }
+      10%  { opacity: 0.6; }
+      90%  { opacity: 0.4; }
+      100% { opacity: 0; transform: translateY(-100vh) rotate(360deg); }
+    }
+
+    /* ── Main content ── */
+    .page {
+      position: relative;
+      z-index: 10;
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      overflow-x: hidden;
-      position: relative;
+      padding: 2rem 1rem 6rem;
     }
-    .floating-emoji {
-      position: absolute;
-      font-size: 2.5rem;
-      opacity: 0.5;
-      animation: float 6s ease-in-out infinite;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .emoji1 { left: 10vw; top: 10vh; animation-delay: 0s;}
-    .emoji2 { right: 12vw; top: 20vh; animation-delay: 2s;}
-    .emoji3 { left: 20vw; bottom: 12vh; animation-delay: 1s;}
-    .emoji4 { right: 18vw; bottom: 8vh; animation-delay: 3s;}
-    @keyframes float {
-      0% { transform: translateY(0);}
-      50% { transform: translateY(-30px);}
-      100% { transform: translateY(0);}
-    }
-    .container {
+
+    /* ── Card ── */
+    .card {
+      background: rgba(253, 248, 240, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1.5px solid rgba(245, 230, 200, 0.8);
+      border-radius: 2.5rem;
+      padding: 3rem 2.5rem 2.5rem;
+      max-width: 420px;
+      width: 100%;
       text-align: center;
-      padding: 2.5rem 1rem;
-      border-radius: 2rem;
-      background: rgba(255,255,255,0.85);
-      box-shadow: 0 4px 24px rgba(34,34,59,0.07);
-      max-width: 400px;
-      margin: 2rem 1rem;
-      z-index: 1;
-      position: relative;
+      box-shadow:
+        0 8px 40px rgba(12, 74, 110, 0.25),
+        0 2px 8px rgba(12, 74, 110, 0.1);
+      animation: cardRise 1s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
     }
-    .logo {
-      font-family: 'Fredoka', cursive;
-      font-size: 2.7rem;
-      color: var(--button);
-      letter-spacing: 2px;
-      margin-bottom: 0.5rem;
+
+    @keyframes cardRise {
+      from { opacity: 0; transform: translateY(60px) scale(0.95); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ── Logo text ── */
+    .logo-text {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 2.6rem;
+      font-weight: 700;
+      color: var(--spice);
+      letter-spacing: 1px;
+      line-height: 1.1;
+      margin-bottom: 0.2rem;
+      animation: logoIn 1s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+      text-shadow: 0 2px 12px rgba(194,65,12,0.15);
+    }
+    .logo-sub {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--ocean);
+      margin-bottom: 0.2rem;
+      animation: logoIn 1s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both;
+    }
+
+    @keyframes logoIn {
+      from { opacity: 0; transform: scale(0.7) rotate(-5deg); }
+      to   { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+
+    /* ── Divider ── */
+    .divider {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 0.5em;
-      opacity: 0;
-      transform: translateY(-40px) scale(0.8);
-      animation: bounceIn 1s 0.2s forwards;
+      gap: 0.75rem;
+      margin: 1rem 0;
+      animation: fadeIn 1s 0.9s both;
     }
-    .logo span {
-      font-size: 2rem;
+    .divider-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--sand-dark), transparent);
     }
+    .divider-icon { font-size: 1rem; }
+
+    /* ── Tagline ── */
     .tagline {
-      font-size: 1.2rem;
-      color: var(--text);
-      margin-bottom: 2.5rem;
-      font-weight: 600;
-      letter-spacing: 1px;
-      opacity: 0;
-      transform: translateY(30px);
-      animation: fadeInUp 1s 0.7s forwards;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-style: italic;
+      font-size: 1.15rem;
+      color: var(--ocean-deep);
+      letter-spacing: 0.5px;
+      line-height: 1.5;
+      margin-bottom: 0.4rem;
+      animation: fadeIn 1s 1s both;
     }
-    .continue-btn {
-      background: var(--button);
+
+    .sub-tagline {
+      font-size: 0.85rem;
+      color: var(--text-mid);
+      font-weight: 300;
+      margin-bottom: 2rem;
+      animation: fadeIn 1s 1.1s both;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Treat icons row ── */
+    .treats-row {
+      display: flex;
+      justify-content: center;
+      gap: 0.6rem;
+      margin-bottom: 2rem;
+      animation: fadeIn 1s 1.2s both;
+    }
+
+    .treat-chip {
+      background: linear-gradient(135deg, var(--ocean) 0%, var(--ocean-deep) 100%);
       color: #fff;
-      font-size: 1.25rem;
-      font-weight: bold;
-      padding: 1.1rem 2.7rem;
-      border: none;
       border-radius: 2rem;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(34,34,59,0.10);
-      transition: background 0.2s, transform 0.1s;
-      margin-top: 1rem;
-      margin-bottom: 0.5rem;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      gap: 0.3em;
+    }
+
+    /* ── CTA Button ── */
+    .cta-btn {
       display: inline-block;
+      background: linear-gradient(135deg, var(--spice) 0%, var(--coral) 100%);
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 500;
+      padding: 1rem 2.8rem;
+      border: none;
+      border-radius: 3rem;
+      cursor: pointer;
       text-decoration: none;
-      opacity: 0;
-      transform: scale(0.8);
-      animation: popIn 0.7s 1.2s forwards;
+      box-shadow:
+        0 4px 20px rgba(194, 65, 12, 0.4),
+        0 1px 4px rgba(194, 65, 12, 0.2);
+      transition: transform 0.15s, box-shadow 0.15s;
+      letter-spacing: 0.3px;
+      animation: fadeIn 1s 1.3s both;
+      position: relative;
+      overflow: hidden;
     }
-    .continue-btn:hover, .continue-btn:focus {
-      background: var(--button-hover);
-      transform: scale(1.08);
+
+    .cta-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+      pointer-events: none;
     }
-    @keyframes bounceIn {
-      0% { opacity: 0; transform: translateY(-40px) scale(0.8);}
-      60% { opacity: 1; transform: translateY(10px) scale(1.1);}
-      80% { transform: translateY(-5px) scale(0.95);}
-      100% { opacity: 1; transform: translateY(0) scale(1);}
+
+    .cta-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow:
+        0 8px 28px rgba(194, 65, 12, 0.45),
+        0 2px 8px rgba(194, 65, 12, 0.25);
     }
-    @keyframes fadeInUp {
-      0% { opacity: 0; transform: translateY(30px);}
-      100% { opacity: 1; transform: translateY(0);}
+
+    .cta-btn:active {
+      transform: scale(0.98);
     }
-    @keyframes popIn {
-      0% { opacity: 0; transform: scale(0.8);}
-      80% { opacity: 1; transform: scale(1.1);}
-      100% { opacity: 1; transform: scale(1);}
+
+    /* ── Footer note ── */
+    .footer-note {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: var(--text-mid);
+      opacity: 0.7;
+      animation: fadeIn 1s 1.5s both;
     }
-    @media (max-width: 600px) {
-      .container {
-        padding: 1.5rem 0.5rem;
-        max-width: 95vw;
+
+    /* ── Dhow silhouette at top ── */
+    .dhow {
+      position: fixed;
+      top: 6vh;
+      right: 5vw;
+      font-size: 3rem;
+      opacity: 0.18;
+      z-index: 2;
+      animation: sailDrift 12s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes sailDrift {
+      0%, 100% { transform: translateX(0) rotate(-3deg); }
+      50% { transform: translateX(-20px) rotate(2deg); }
+    }
+
+    .palm {
+      position: fixed;
+      bottom: 140px;
+      left: 3vw;
+      font-size: 4rem;
+      opacity: 0.2;
+      z-index: 2;
+      pointer-events: none;
+      animation: palmSway 7s ease-in-out infinite;
+      transform-origin: bottom center;
+    }
+
+    @keyframes palmSway {
+      0%, 100% { transform: rotate(-3deg); }
+      50% { transform: rotate(4deg); }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .card {
+        padding: 2rem 1.5rem 2rem;
+        border-radius: 2rem;
+        margin: 0 0.75rem;
       }
-      .logo {
-        font-size: 2rem;
-      }
-      .tagline {
-        font-size: 1rem;
-      }
-      .continue-btn {
-        font-size: 1.1rem;
-        padding: 1rem 1.5rem;
-      }
-      .floating-emoji { font-size: 1.5rem;}
+      .logo-img { width: 150px; }
+      .tagline { font-size: 1rem; }
+      .treats-row { flex-wrap: wrap; }
+      .cta-btn { font-size: 1rem; padding: 0.9rem 2rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; }
     }
   </style>
 </head>
 <body>
-  <div class="floating-emoji emoji1">🍬</div>
-  <div class="floating-emoji emoji2">🍭</div>
-  <div class="floating-emoji emoji3">🥭</div>
-  <div class="floating-emoji emoji4">🥥</div>
-  <div class="container">
-    <div class="logo">
-      <span>🍬</span> Swahili Treats <span>🍭</span>
+
+  <!-- Ocean background -->
+  <div class="bg-ocean"></div>
+
+  <!-- Decorative elements -->
+  <div class="dhow">⛵</div>
+  <div class="palm">🌴</div>
+
+  <!-- Animated waves -->
+  <svg class="waves" viewBox="0 0 1440 180" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="wave" fill="#f5e6c8" fill-opacity="0.9"
+      d="M0,100 C240,140 480,60 720,100 C960,140 1200,60 1440,100 L1440,180 L0,180 Z"/>
+    <path class="wave2" fill="#e8c98a" fill-opacity="0.6"
+      d="M0,120 C360,80 720,160 1080,120 C1260,100 1380,130 1440,120 L1440,180 L0,180 Z"/>
+    <path class="wave3" fill="#fdf8f0" fill-opacity="0.4"
+      d="M0,140 C180,110 360,160 540,140 C720,120 900,160 1080,140 C1260,120 1380,150 1440,140 L1440,180 L0,180 Z"/>
+  </svg>
+
+  <!-- Floating particles -->
+  <div class="particle" style="left:15%;animation-duration:12s;animation-delay:0s;font-size:1.2rem;">🌺</div>
+  <div class="particle" style="left:75%;animation-duration:15s;animation-delay:3s;">🥭</div>
+  <div class="particle" style="left:40%;animation-duration:10s;animation-delay:6s;font-size:1rem;">🌿</div>
+  <div class="particle" style="left:85%;animation-duration:13s;animation-delay:1s;font-size:1rem;">🥥</div>
+  <div class="particle" style="left:25%;animation-duration:11s;animation-delay:8s;font-size:1rem;">⭐</div>
+
+  <!-- Main card -->
+  <div class="page">
+    <div class="card">
+
+      <div class="logo-text">🍬 Swahili Treats</div>
+      <div class="logo-sub">Sweet · Spicy · Swahili</div>
+
+      <div class="divider">
+        <div class="divider-line"></div>
+        <span class="divider-icon">🌊</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <p class="tagline">Homemade sweets from the heart of the coast</p>
+      <p class="sub-tagline">Delivered fresh to your door, straight from our kitchen</p>
+
+      <div class="treats-row">
+        <div class="treat-chip">🍬 Mabuyu</div>
+        <div class="treat-chip">🥭 Viazi</div>
+        <div class="treat-chip">🥥 Kashata</div>
+      </div>
+
+      <button class="cta-btn" onclick="goToProducts()">
+        See Our Treats →
+      </button>
+
+      <p class="footer-note">🌊 Fresh. Local. Swahili.</p>
+
+      <!-- Terms notice -->
+      <div style="margin-top:1.2rem;font-size:0.72rem;color:var(--text-mid);line-height:1.5;animation:fadeIn 1s 1.6s both;opacity:0;">
+        By continuing you agree to our
+        <button type="button" id="terms-toggle" style="background:none;border:none;color:var(--spice);font-weight:700;cursor:pointer;padding:0;font-size:0.72rem;text-decoration:underline;">Terms &amp; Data Policy</button>
+        <div id="terms-content" style="display:none;margin-top:0.6rem;padding:0.75rem;background:rgba(255,183,3,0.1);border:1px solid var(--sand-dark);border-radius:0.75rem;text-align:left;">
+          <strong style="color:var(--ocean-deep);display:block;margin-bottom:0.3rem;">📋 Data &amp; Privacy Notice</strong>
+          When you place an order, you agree that:
+          <ul style="margin:0.4rem 0 0 1rem;padding:0;">
+            <li>Your name, phone &amp; delivery details will be stored to process your order.</li>
+            <li>Swahili Treats is not liable for issues arising from incorrect info you provide.</li>
+            <li>Your data is used solely for order fulfilment and not shared with third parties.</li>
+            <li>We are not responsible for circumstances beyond our control.</li>
+          </ul>
+        </div>
+      </div>
     </div>
-    <div class="tagline">Sweet. Spicy. Swahili.</div>
-    <button class="continue-btn" onclick="goToProducts()">Continue to See the Treats</button>
   </div>
+
   <script>
     function goToProducts() {
-      // Add a fun button pop effect before navigating
-      const btn = document.querySelector('.continue-btn');
-      btn.style.transform = 'scale(1.15)';
-      setTimeout(() => {
-        window.location.href = "products.html";
-      }, 180);
+      const btn = document.querySelector('.cta-btn');
+      btn.textContent = 'Loading…';
+      btn.style.opacity = '0.8';
+      setTimeout(() => { window.location.href = "products.html"; }, 200);
+    }
+
+    // Terms toggle
+    const termsToggle = document.getElementById("terms-toggle");
+    const termsContent = document.getElementById("terms-content");
+    if (termsToggle) {
+      termsToggle.addEventListener("click", () => {
+        const isOpen = termsContent.style.display !== "none";
+        termsContent.style.display = isOpen ? "none" : "block";
+        termsToggle.textContent = isOpen ? "Terms & Data Policy" : "Hide terms";
+      });
     }
   </script>
 </body>
